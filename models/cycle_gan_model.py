@@ -77,6 +77,16 @@ class CycleGANModel(BaseModel):
         self.real_B = input['B' if AtoB else 'A'].to(self.device)
         self.image_paths = input['A_paths' if AtoB else 'B_paths']
 
+    def inference(self, direction, image):
+        if direction not in ['AtoB', 'BtoA']:
+            raise ValueError('{} is not a valid direction'.format(direction))
+
+        with torch.no_grad():
+            if direction == 'AtoB':
+                return self.netG_A(image)
+            else:
+                return self.netG_B(image)
+
     def forward(self):
         self.fake_B = self.netG_A(self.real_A)
         self.rec_A = self.netG_B(self.fake_B)
