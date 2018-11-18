@@ -3,7 +3,6 @@ debug*
 datasets/*/
 datasets/*.7z
 datasets/*.sh
-checkpoints/
 results/
 build/
 dist/
