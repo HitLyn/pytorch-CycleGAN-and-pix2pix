@@ -82,6 +82,7 @@ class CycleGANModel(BaseModel):
             raise ValueError('{} is not a valid direction'.format(direction))
 
         with torch.no_grad():
+            #image = torch.from_numpy(image.copy()).to(self.device)
             if direction == 'AtoB':
                 return self.netG_A(image)
             else:
