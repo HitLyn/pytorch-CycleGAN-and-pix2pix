@@ -47,12 +47,8 @@ if __name__ == '__main__':
             env.step(np.random.randn(env.dof))
             obs = env._get_observation()["image"][::-1]
 
-            print(obs.shape)
             obs = Image.fromarray(obs).convert('RGB')
             obs = transform(obs) #.to(model.device)
-            print(obs.shape)
-            model.set_input({'A': obs, 'B': obs, 'A_paths': 'fff', 'B_paths': 'aaaa'})
-            model.forward()
             transfered = model.inference(opt.direction, obs)
 
             fig = plt.figure()
