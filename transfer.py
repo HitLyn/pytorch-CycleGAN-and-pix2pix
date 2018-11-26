@@ -10,7 +10,8 @@ from PIL import Image
 
 import matplotlib.pyplot as plt
 
-import robosuite
+#import robosuite
+import RoboticsSuite as suite
 
 if __name__ == '__main__':
     opt = TransferOptions().parse()
@@ -28,14 +29,14 @@ if __name__ == '__main__':
     if opt.eval:
         model.eval()
 
-    env = robosuite.make(opt.env,
-                         has_renderer=False,
-                         ignore_done=True,
-                         use_camera_obs=True,
-                         gripper_visualization=True,
-                         reward_shaping=True,
-                         control_freq=100,
-                         camera_name='agentview'
+    env = suite.make(opt.env,
+                     has_renderer=False,
+                     ignore_done=True,
+                     use_camera_obs=True,
+                     #gripper_visualization=True,
+                     reward_shaping=True,
+                     control_freq=100,
+                     camera_name='agentview'
     )
     transform = data.base_dataset.get_transform(opt)
     for ep in range(opt.num_test):
@@ -47,16 +48,26 @@ if __name__ == '__main__':
             env.step(np.random.randn(env.dof))
             obs = env._get_observation()["image"][::-1]
 
+            obs_save = obs.copy()
+
             obs = Image.fromarray(obs).convert('RGB')
-            obs = transform(obs) #.to(model.device)
+            obs = transform(obs)
+            obs = obs.unsqueeze(0)
             transfered = model.inference(opt.direction, obs)
 
             fig = plt.figure()
             ax = fig.add_subplot(1,2,1)
-            plt.imshow(obs)
+
+            plt.imshow(obs_save)
             ax.set_title('original')
             ax = fig.add_subplot(1,2,2)
+            transfered = transfered[0].cpu().detach().numpy()
+            transfered = (np.transpose(transfered, (1, 2, 0)) + 1) / 2.0 * 255.0
+            transfered = transfered.astype(np.uint8)
+
             plt.imshow(transfered)
             ax.set_title('transfered')
 
-            plt.show()
+            plt.show(block=False)
+            plt.waitforbuttonpress()
+            plt.close()
