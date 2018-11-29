@@ -13,6 +13,9 @@ class TransferOptions(BaseOptions):
         parser.add_argument('--num_test', type=int, default=50, help='how many test images to run')
 
         parser.add_argument('--env', type=str, default='SawyerLift', help='the env to use')
+        parser.add_argument('--policy_path', type=str,
+                            default="/home/jonathan/Downloads/learner.166000.ckpt.cpu",
+                            help='path to the surreal weights file')
 
         parser.set_defaults(model='test')
         # To avoid cropping, the loadSize should be the same as fineSize
