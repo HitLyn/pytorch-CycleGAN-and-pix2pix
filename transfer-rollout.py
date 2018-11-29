@@ -28,6 +28,8 @@ from surreal.main.ppo_configs import *
 # from surreal.learner import learner_factory
 from surreal.agent import PPOAgent
 import surreal.utils as U
+import cv2
+import time
 
 USER = "amandlek"
 EXPERIMENT_NAME = "ppo-pegs-round-sparse-eplen-100-1000-1"
@@ -123,7 +125,7 @@ if __name__ == "__main__":
     # np.random.seed(int(time.time() * 100000 % 100000))
 
     # retrieve the policy params if necessary and restore the model
-    path_to_policy_params = "/home/anchit/surreal/learner.21000.ckpt.cpu"
+    path_to_policy_params = "/home/jonathan/Downloads/learner.166000.ckpt.cpu"
     print("\nLoading policy located at {}\n".format(path_to_policy_params))
     model = restore_model(path_to_policy_params)
 
@@ -157,16 +159,22 @@ if __name__ == "__main__":
     if opt.eval:
         model.eval()
     transform = data.base_dataset.get_transform(opt)
+
+    env.unwrapped.camera_width = 256
+    env.unwrapped.camera_height = 256
+    
     for j in range(20) :
         ob, info = env.reset()
         # env.unwrapped.viewer.viewer._hide_overlay = True
         # env.unwrapped.viewer.set_camera(2)
         for i in range(200):
             obs = env.unwrapped._get_observation()["image"][::-1]
+
             obs = Image.fromarray(obs).convert('RGB')
-            obs = obs.resize((256,256))
+            #obs = obs.resize((256,256))
             fig = plt.figure()
             ax = fig.add_subplot(1,2,1)
+
             plt.imshow(obs)
             obs = transform(obs)
             obs = obs.unsqueeze(0)
@@ -178,11 +186,13 @@ if __name__ == "__main__":
             transfered = transfered[0].cpu().detach().numpy()
             transfered = (np.transpose(transfered, (1, 2, 0)) + 1) / 2.0 * 255.0
             transfered = transfered.astype(np.uint8)
+
             plt.imshow(transfered)
             ax.set_title('transfered')
 
             plt.show(block=False)
-            plt.waitforbuttonpress()
+            #plt.waitforbuttonpress()
+            time.sleep(1)
             plt.close()
             transfered = Image.fromarray(transfered).convert('RGB')
             transfered = transfered.resize((84,84))
