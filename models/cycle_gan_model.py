@@ -1,8 +1,11 @@
 import torch
+import torchvision
 import itertools
 from util.image_pool import ImagePool
 from .base_model import BaseModel
 from . import networks
+import math
+import torchsample
 
 
 class CycleGANModel(BaseModel):
@@ -17,6 +20,8 @@ class CycleGANModel(BaseModel):
             parser.add_argument('--lambda_A', type=float, default=10.0, help='weight for cycle loss (A -> B -> A)')
             parser.add_argument('--lambda_B', type=float, default=10.0,
                                 help='weight for cycle loss (B -> A -> B)')
+            parser.add_argument('--lambda_shift_A', type=float, default=0.01, help='weight for shift loss for A')
+            parser.add_argument('--lambda_shift_B', type=float, default=0.01, help='weight for shift loss for B')
             parser.add_argument('--lambda_identity', type=float, default=0.5, help='use identity mapping. Setting lambda_identity other than 0 has an effect of scaling the weight of the identity mapping loss. For example, if the weight of the identity loss should be 10 times smaller than the weight of the reconstruction loss, please set lambda_identity = 0.1')
 
         return parser
@@ -25,7 +30,7 @@ class CycleGANModel(BaseModel):
         BaseModel.initialize(self, opt)
 
         # specify the training losses you want to print out. The program will call base_model.get_current_losses
-        self.loss_names = ['D_A', 'G_A', 'cycle_A', 'idt_A', 'D_B', 'G_B', 'cycle_B', 'idt_B']
+        self.loss_names = ['D_A', 'G_A', 'cycle_A', 'idt_A', 'D_B', 'G_B', 'cycle_B', 'idt_B', 'shift_A', 'shift_B']
         # specify the images you want to save/display. The program will call base_model.get_current_visuals
         visual_names_A = ['real_A', 'fake_B', 'rec_A']
         visual_names_B = ['real_B', 'fake_A', 'rec_B']
@@ -62,6 +67,9 @@ class CycleGANModel(BaseModel):
             self.criterionGAN = networks.GANLoss(use_lsgan=not opt.no_lsgan).to(self.device)
             self.criterionCycle = torch.nn.L1Loss()
             self.criterionIdt = torch.nn.L1Loss()
+            self.criterionShift = torch.nn.MSELoss(size_average=False)
+            self.shift_transform = torchsample.transforms.RandomTranslate((1./8., 1./8.))
+
             # initialize optimizers
             self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()),
                                                 lr=opt.lr, betas=(opt.beta1, 0.999))
@@ -120,6 +128,9 @@ class CycleGANModel(BaseModel):
         lambda_idt = self.opt.lambda_identity
         lambda_A = self.opt.lambda_A
         lambda_B = self.opt.lambda_B
+        lambda_shift_A = self.opt.lambda_shift_A
+        lambda_shift_B = self.opt.lambda_shift_B
+
         # Identity loss
         if lambda_idt > 0:
             # G_A should be identity if real_B is fed.
@@ -140,8 +151,51 @@ class CycleGANModel(BaseModel):
         self.loss_cycle_A = self.criterionCycle(self.rec_A, self.real_A) * lambda_A
         # Backward cycle loss
         self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
+
+        #Shift losses from VR-Goggles for Robots
+        real_A = self.real_A.cpu() #((self.real_A + 1.) / 2. * 255) #.int().numpy()
+        real_B = self.real_B.cpu()  #((self.real_B + 1.) / 2. * 255.) #.int().numpy()
+        #print(self.real_A[0].shape, type(self.real_A[0]), self.real_A[0])
+        real_A = torch.unbind(real_A, 0)
+        real_B = torch.unbind(real_B, 0)
+
+        fake_A = self.fake_A.cpu()
+        fake_B = self.fake_B.cpu()
+
+        fake_A = torch.unbind(fake_A, 0)
+        fake_B = torch.unbind(fake_B, 0)
+
+
+        shifted_real_A, height_A, width_A = self.shift_transform(*real_A)
+        shifted_real_B, height_B, width_B = self.shift_transform(*real_B)
+
+        gen_B = self.netG_A(torch.stack(shifted_real_A, 0).cuda())
+        gen_A = self.netG_B(torch.stack(shifted_real_B, 0).cuda())
+
+        shifted_fake_A, _, _ = self.shift_transform(*fake_A, random_height=height_B, random_width=width_B) # netG_B
+        shifted_fake_B, _, _ = self.shift_transform(*fake_B, random_height=height_A, random_width=width_A) # netG_A
+        shifted_fake_A = torch.stack(shifted_fake_A).cuda()
+        shifted_fake_B = torch.stack(shifted_fake_B).cuda()
+
+        import cv2
+        import numpy as np
+        cv2.imshow('shifted_real_A', ((shifted_real_A[0].detach().cpu().numpy() + 1.) / 2. * 255.).astype(np.uint8).transpose([1,2,0]))
+        cv2.imshow('real_A', ((real_A[0].detach().cpu().numpy() + 1.) / 2. * 255.).astype(np.uint8).transpose([1,2,0]))
+
+        cv2.imshow('fake_B', ((fake_B[0].detach().cpu().numpy() + 1.) / 2. * 255.).astype(np.uint8).transpose([1,2,0]))
+
+        cv2.imshow('gen_B', ((gen_B.detach().cpu().numpy() + 1.) / 2. * 255.).astype(np.uint8)[0].transpose([1,2,0]))
+        cv2.imshow('shifted_fake_B', ((shifted_fake_B[0].detach().cpu().numpy() + 1.) / 2. * 255.).astype(np.uint8).transpose([1,2,0]))
+        cv2.waitKey(1)
+
+        self.loss_shift_A = self.criterionShift(shifted_fake_A, gen_A) * lambda_shift_A
+        self.loss_shift_B = self.criterionShift(shifted_fake_B, gen_B) * lambda_shift_B
+
+        print(self.criterionShift(shifted_fake_A, gen_A), self.criterionShift(shifted_fake_B, gen_B))
+
         # combined loss
-        self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B
+        self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + \
+                      self.loss_idt_A + self.loss_idt_B + self.loss_shift_A + self.loss_shift_B
         self.loss_G.backward()
 
     def optimize_parameters(self):
