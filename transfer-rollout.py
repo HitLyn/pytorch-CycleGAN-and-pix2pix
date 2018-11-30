@@ -83,8 +83,11 @@ if __name__ == "__main__":
         model.eval()
     transform = data.base_dataset.get_transform(opt)
 
-    env.unwrapped.camera_width, env.unwrapped.camera_height = opt.finesize, opt.finesize
-    
+    env.unwrapped.camera_width, env.unwrapped.camera_height = opt.fineSize, opt.fineSize
+
+    if opt.save_obs:
+        os.makedirs(opt.obs_save_path, exist_ok=True)
+
     for j in range(20) :
         ob, info = env.reset()
 
@@ -92,10 +95,14 @@ if __name__ == "__main__":
             obs = env.unwrapped._get_observation()["image"][::-1]
             obs = Image.fromarray(obs).convert('RGB')
 
-            fig = plt.figure()
-            ax = fig.add_subplot(1,2,1)
-            plt.imshow(obs)
-            ax.set_title('original')
+            if opt.save_obs:
+                obs.save(opt.obs_save_path + '/rollout_{}_{}.jpg'.format(j, i))
+
+            if not opt.save_obs:
+                fig = plt.figure()
+                ax = fig.add_subplot(1,2,1)
+                plt.imshow(obs)
+                ax.set_title('original')
 
             obs = transform(obs).unsqueeze(0)
 
@@ -104,16 +111,19 @@ if __name__ == "__main__":
             transfered = (np.transpose(transfered, (1, 2, 0)) + 1) / 2.0 * 255.0
             transfered = transfered.astype(np.uint8)
 
-            ax = fig.add_subplot(1,2,2)
-            plt.imshow(transfered)
-            ax.set_title('transfered')
+            if not opt.save_obs:
+                ax = fig.add_subplot(1,2,2)
+                plt.imshow(transfered)
+                ax.set_title('transfered')
 
-            plt.show(block=False)
-            time.sleep(1)
-            plt.close()
+                plt.show(block=False)
+                time.sleep(1)
+                plt.close()
+
             transfered = Image.fromarray(transfered).convert('RGB')
             transfered = transfered.resize((84,84))
             transfered = np.transpose(np.array(transfered),(2,0,1))
+
             ob['pixel']['camera0']= transfered[::-1]
             a = agent.act(ob)
             ob, r, _, _ = env.step(a)

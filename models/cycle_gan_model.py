@@ -92,9 +92,9 @@ class CycleGANModel(BaseModel):
         with torch.no_grad():
             #image = torch.from_numpy(image.copy()).to(self.device)
             if direction == 'AtoB':
-                return self.netG_A(image)
-            else:
                 return self.netG_B(image)
+            else:
+                return self.netG_A(image)
 
     def forward(self):
         self.fake_B = self.netG_A(self.real_A)
@@ -177,6 +177,7 @@ class CycleGANModel(BaseModel):
         shifted_fake_A = torch.stack(shifted_fake_A).cuda()
         shifted_fake_B = torch.stack(shifted_fake_B).cuda()
 
+        """"
         import cv2
         import numpy as np
         cv2.imshow('shifted_real_A', ((shifted_real_A[0].detach().cpu().numpy() + 1.) / 2. * 255.).astype(np.uint8).transpose([1,2,0]))
@@ -187,6 +188,7 @@ class CycleGANModel(BaseModel):
         cv2.imshow('gen_B', ((gen_B.detach().cpu().numpy() + 1.) / 2. * 255.).astype(np.uint8)[0].transpose([1,2,0]))
         cv2.imshow('shifted_fake_B', ((shifted_fake_B[0].detach().cpu().numpy() + 1.) / 2. * 255.).astype(np.uint8).transpose([1,2,0]))
         cv2.waitKey(1)
+        """
 
         self.loss_shift_A = self.criterionShift(shifted_fake_A, gen_A) * lambda_shift_A
         self.loss_shift_B = self.criterionShift(shifted_fake_B, gen_B) * lambda_shift_B
