@@ -1,3 +1,11 @@
+# Stanford CS236 Project Code. CycleGAN for sim2real Domain Adaptation.
+Training rl policies from pixels in simulation takes long enough. How could we possibly learn roboust policies on real robots? Simply learn to adapt images from real to sim and then run the sim policy. We tackle the easier problem of sim2sim transfer using visually dissimilar domains, this way we remove the dynamics gap that exists in actial sim2real from the gap in the visual.
+
+We find for best results training on images that are larger than the images used by the policy and then downsampling. This will remove some of the finer artefacts of the GAN as well as smooth out some of the textures which we find helps with policy transfer. Training on smaller images like those used by the policy is difficult as the discriminator tends to get too good too fast and making it smaller hurts qualitative results. 
+
+
+---
+
 <img src='imgs/horse2zebra.gif' align="right" width=384>
 
 <br><br><br>
