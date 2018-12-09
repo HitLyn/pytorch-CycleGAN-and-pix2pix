@@ -193,7 +193,7 @@ class CycleGANModel(BaseModel):
         self.loss_shift_A = self.criterionShift(shifted_fake_A, gen_A) * lambda_shift_A
         self.loss_shift_B = self.criterionShift(shifted_fake_B, gen_B) * lambda_shift_B
 
-        print(self.criterionShift(shifted_fake_A, gen_A), self.criterionShift(shifted_fake_B, gen_B))
+        #print(self.criterionShift(shifted_fake_A, gen_A), self.criterionShift(shifted_fake_B, gen_B))
 
         # combined loss
         self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + \
