@@ -7,13 +7,11 @@ from PIL import Image
 import matplotlib.pyplot as plt
 
 import pickle
-import time
 
 from surreal.env import *
 from surreal.main.ppo_configs import *
 from surreal.agent import PPOAgent
 
-from argparse import ArgumentParser
 
 def restore_model(path_to_ckpt):
     """
@@ -23,12 +21,12 @@ def restore_model(path_to_ckpt):
         data = pickle.load(fp)
     return data['model']
 
-def restore_env(env_config):
+def restore_env(env_config, internal):
     """
     Restores the environment.
     """
     env_config.eval_mode.render = True
-    env, env_config = make_env(env_config, 'eval')
+    env, env_config = make_env(env_config, 'eval', internal=internal)
     return env, env_config
 
 def restore_agent(learner_config, env_config, session_config, model):
@@ -62,7 +60,8 @@ if __name__ == "__main__":
     session_config.learner.num_gpus = 0
     
     # restore the environment
-    env, env_config = restore_env(env_config)
+    env, env_config = restore_env(env_config, internal=True)
+
     # restore the agent
     agent = restore_agent(learner_config, env_config, session_config, model)
     print("Successfully loaded agent and model!")
@@ -88,21 +87,24 @@ if __name__ == "__main__":
     if opt.save_obs:
         os.makedirs(opt.obs_save_path, exist_ok=True)
 
-    for j in range(20) :
+    count = 0
+    ep_rewards = []
+
+    fig = plt.figure()
+
+    for j in range(10) :
         ob, info = env.reset()
 
         for i in range(200):
-            obs = env.unwrapped._get_observation()["image"][::-1]
-            obs = Image.fromarray(obs).convert('RGB')
+
+            obs = env.unwrapped._get_observation()["image"]
+            obs = Image.fromarray(obs[::-1]).convert('RGB')
 
             if opt.save_obs:
                 obs.save(opt.obs_save_path + '/rollout_{}_{}.jpg'.format(j, i))
-
-            if not opt.save_obs:
-                fig = plt.figure()
-                ax = fig.add_subplot(1,2,1)
+            else:
+                plt.subplot(121)
                 plt.imshow(obs)
-                ax.set_title('original')
 
             obs = transform(obs).unsqueeze(0)
 
@@ -111,24 +113,25 @@ if __name__ == "__main__":
             transfered = (np.transpose(transfered, (1, 2, 0)) + 1) / 2.0 * 255.0
             transfered = transfered.astype(np.uint8)
 
+            transfered = Image.fromarray(transfered[::-1]).convert('RGB')
             if not opt.save_obs:
-                ax = fig.add_subplot(1,2,2)
-                plt.imshow(transfered)
-                ax.set_title('transfered')
-
-                plt.show(block=False)
-                time.sleep(1)
-                plt.close()
-
-            transfered = Image.fromarray(transfered).convert('RGB')
+                plt.subplot(122)
+                plt.imshow(np.array(transfered)[::-1])
+                plt.pause(0.01)
+                plt.draw()
             transfered = transfered.resize((84,84))
-            transfered = np.transpose(np.array(transfered),(2,0,1))
 
-            ob['pixel']['camera0']= transfered[::-1]
+            transfered = np.transpose(transfered,(2,0,1)).copy()
+
+            ob['pixel']['camera0']= transfered
             a = agent.act(ob)
-            ob, r, _, _ = env.step(a)
-            print(r)
-
+            ob, r, done, _ = env.step(a)
+            #if done:
+            #   env.reset()
+ 
             reward +=r
-            
+            count += 1
+        ep_rewards.append(reward - np.sum(ep_rewards)) if len(ep_rewards) != 0 else ep_rewards.append(reward)
+        print(np.sum(ep_rewards) / len(ep_rewards))
+
     print(reward/10)
