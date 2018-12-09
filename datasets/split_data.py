@@ -5,10 +5,10 @@ import sys
 from random import shuffle
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--path_A', default='./orig', help='Path to the original data')
-parser.add_argument('--path_B', default='./modi', help='Path to the modified data')
-parser.add_argument('--path_trained', default='./trained', help='path to images from the trained policy')
-parser.add_argument('--output_dir', default='sawyer', help='Path the output directory for the data')
+parser.add_argument('--path_A', default='./sawyer_gen/random_normal', help='Path to the original data')
+parser.add_argument('--path_B', default='./sawyer_gen/textured', help='Path to the modified data')
+parser.add_argument('--path_trained', default='./sawyer_gen/state_rollout_normal', help='path to images from the trained policy')
+parser.add_argument('--output_dir', default='sawyer_black256', help='Path the output directory for the data')
 parser.add_argument('--splits_A', nargs='+',   default=[90, 0, 10], help='The splits for the data defined as X Y Z    ' \
                     'where X is the percent train, Y is the percent valid and Z is the percent test')
 parser.add_argument('--splits_B', nargs='+',   default=[10, 0, 90], help='The splits for the data defined as X Y Z    ' \
@@ -26,9 +26,9 @@ if __name__ == '__main__':
     assert sum(args.splits_B) == 100, 'Split must add up to 100%'
 
 
-    files_A = glob.glob('{}/*.png'.format(args.path_A))
-    files_B = glob.glob('{}/*.png'.format(args.path_B))
-    files_trained = glob.glob('{}/*.png'.format(args.path_trained))
+    files_A = glob.glob('{}/*.jpg'.format(args.path_A))
+    files_B = glob.glob('{}/*.jpg'.format(args.path_B))
+    files_trained = glob.glob('{}/*.jpg'.format(args.path_trained))
 
     shuffle(files_A)
     shuffle(files_B)
