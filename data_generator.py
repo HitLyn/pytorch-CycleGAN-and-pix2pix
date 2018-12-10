@@ -7,12 +7,12 @@ from options.datagen_options import DataGenOptions
 from mujoco_py import MjSimState
 import pickle
 
-def restore_env(env_config, size, internal=False):
+def restore_env(env_config, size, internal=False, collision=False):
     """
     Restore the env
     """
     env_config.eval_mode.render = True
-    env, env_config = make_env(env_config, 'eval', internal=internal)
+    env, env_config = make_env(env_config, 'eval', internal=internal, collision=collision)
     env.unwrapped.camera_width, env.unwrapped.camera_height = size, size
     return env, env_config
 
@@ -88,7 +88,7 @@ def rollout_save_states(opt, env, env_config):
 
 def rollout_from_state(opt, env):
 
-    t = 'textured' if opt.internal else 'normal'
+    t = 'textured' if opt.internal or opt.collision else 'normal'
     if opt.save_obs:
         os.makedirs(opt.data_root + '/' + opt.dataset_name + '/state_rollout_{}'.format(t), exist_ok=True)
 
@@ -166,7 +166,7 @@ def rollout_policy(opt, env, env_config):
 
 def rollout_random(opt, env):
 
-    t = 'textured' if opt.internal else 'normal'
+    t = 'textured' if opt.internal or opt.collision else 'normal'
     if opt.save_obs:
         os.makedirs(opt.data_root + '/' + opt.dataset_name + '/random_{}'.format(t), exist_ok=True)
 
@@ -195,7 +195,8 @@ if __name__ == '__main__':
     options = DataGenOptions().parse()
 
     environment_config = PPO_DEFAULT_ENV_CONFIG
-    environment, _ = restore_env(environment_config, options.size, internal=options.internal)
+    environment, _ = restore_env(environment_config, options.size,
+                                 internal=options.internal, collision=options.collision)
 
 
     if options.mode == 'save_states':

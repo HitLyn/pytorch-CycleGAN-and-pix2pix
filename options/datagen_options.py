@@ -14,6 +14,8 @@ class DataGenOptions(BaseOptions):
         parser.add_argument('--data_root', type=str, default='./datasets')
         parser.add_argument('--states-file', type=str, default='states')
         parser.add_argument('--internal', action='store_true', help='should we use robosuite internal')
+        parser.add_argument('--collision', action='store_true', help='should we render the collision mesh instead')
+
         parser.add_argument('--n_rollouts', type=int, default=100, help='the number of rollouts we should perform')
         parser.add_argument('--n_steps', type=int, default=200, help='the number of steps per rollout we should perform')
 

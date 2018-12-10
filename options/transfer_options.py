@@ -19,6 +19,7 @@ class TransferOptions(BaseOptions):
         parser.add_argument('--save_obs', action='store_true', help='if we should save the image obs from the rollout')
         parser.add_argument('--obs_save_path', type=str, default='./datasets/rollout')
 
+        parser.add_argument('--collision', action='store_true', help='are we running transfer on the collision mesh')
         parser.set_defaults(model='test')
 
         # To avoid cropping, the loadSize should be the same as fineSize

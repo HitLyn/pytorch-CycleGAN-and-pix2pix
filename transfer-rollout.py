@@ -21,12 +21,12 @@ def restore_model(path_to_ckpt):
         data = pickle.load(fp)
     return data['model']
 
-def restore_env(env_config, internal):
+def restore_env(env_config, internal, collision):
     """
     Restores the environment.
     """
     env_config.eval_mode.render = True
-    env, env_config = make_env(env_config, 'eval', internal=internal)
+    env, env_config = make_env(env_config, 'eval', internal=internal, collision=collision)
     return env, env_config
 
 def restore_agent(learner_config, env_config, session_config, model):
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     session_config.learner.num_gpus = 0
     
     # restore the environment
-    env, env_config = restore_env(env_config, internal=True)
+    env, env_config = restore_env(env_config, internal=not opt.collision, collision=opt.collision)
 
     # restore the agent
     agent = restore_agent(learner_config, env_config, session_config, model)
