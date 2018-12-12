@@ -20,6 +20,9 @@ class TransferOptions(BaseOptions):
         parser.add_argument('--obs_save_path', type=str, default='./datasets/rollout')
 
         parser.add_argument('--collision', action='store_true', help='are we running transfer on the collision mesh')
+        parser.add_argument('--use-gan', action='store_true', help='should we use the cyclegan')
+        parser.add_argument('--display', action='store_true', help='should we display the observations and transfer')
+        parser.add_argument('--pure-rollout', action='store_true', help='perform a baseline rollout')
         parser.set_defaults(model='test')
 
         # To avoid cropping, the loadSize should be the same as fineSize

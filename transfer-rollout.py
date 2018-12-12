@@ -60,12 +60,13 @@ if __name__ == "__main__":
     session_config.learner.num_gpus = 0
     
     # restore the environment
-    env, env_config = restore_env(env_config, internal=not opt.collision, collision=opt.collision)
-
+    if not opt.pure_rollout:
+        env, env_config = restore_env(env_config, internal=not opt.collision, collision=opt.collision)
+    else:
+        env, env_config = restore_env(env_config, internal=False, collision=False)
     # restore the agent
     agent = restore_agent(learner_config, env_config, session_config, model)
     print("Successfully loaded agent and model!")
-    reward = 0
 
     # hard-code some parameters for test
     opt.num_threads = 1   # test code only supports num_threads = 1
@@ -74,13 +75,16 @@ if __name__ == "__main__":
     opt.no_flip = True    # no flip
     opt.display_id = -1   # no visdom display
     opt.gpu_ids = []
-    model = create_model(opt)
-    model.setup(opt)
 
-    # CycleGAN: It should not affect CycleGAN as CycleGAN uses instancenorm without dropout.
-    if opt.eval:
-        model.eval()
-    transform = data.base_dataset.get_transform(opt)
+    if opt.use_gan:
+        model = create_model(opt)
+        model.setup(opt)
+
+        # CycleGAN: It should not affect CycleGAN as CycleGAN uses instancenorm without dropout.
+        if opt.eval:
+            model.eval()
+
+        transform = data.base_dataset.get_transform(opt)
 
     env.unwrapped.camera_width, env.unwrapped.camera_height = opt.fineSize, opt.fineSize
 
@@ -90,31 +94,36 @@ if __name__ == "__main__":
     count = 0
     ep_rewards = []
 
-    fig = plt.figure()
+    if opt.display:
+        fig = plt.figure()
 
-    for j in range(10) :
+    for j in range(20) :
         ob, info = env.reset()
-
+        reward = 0
         for i in range(200):
 
             obs = env.unwrapped._get_observation()["image"]
-            obs = Image.fromarray(obs[::-1]).convert('RGB')
 
             if opt.save_obs:
                 obs.save(opt.obs_save_path + '/rollout_{}_{}.jpg'.format(j, i))
-            else:
+            elif opt.display:
                 plt.subplot(121)
                 plt.imshow(obs)
 
-            obs = transform(obs).unsqueeze(0)
+            if opt.use_gan:
+                obs = Image.fromarray(obs[::-1]).convert('RGB')
+                obs = transform(obs).unsqueeze(0)
 
-            transfered = model.inference(opt.direction, obs)
-            transfered = transfered[0].cpu().detach().numpy()
-            transfered = (np.transpose(transfered, (1, 2, 0)) + 1) / 2.0 * 255.0
-            transfered = transfered.astype(np.uint8)
+                transfered = model.inference(opt.direction, obs)
+                transfered = transfered[0].cpu().detach().numpy()
+                transfered = (np.transpose(transfered, (1, 2, 0)) + 1) / 2.0 * 255.0
+                transfered = transfered.astype(np.uint8)
 
-            transfered = Image.fromarray(transfered[::-1]).convert('RGB')
-            if not opt.save_obs:
+                transfered = Image.fromarray(transfered[::-1]).convert('RGB')
+            else:
+                transfered = Image.fromarray(obs).convert('RGB')
+
+            if not opt.save_obs and opt.display:
                 plt.subplot(122)
                 plt.imshow(np.array(transfered)[::-1])
                 plt.pause(0.01)
@@ -131,7 +140,7 @@ if __name__ == "__main__":
  
             reward +=r
             count += 1
-        ep_rewards.append(reward - np.sum(ep_rewards)) if len(ep_rewards) != 0 else ep_rewards.append(reward)
-        print(np.sum(ep_rewards) / len(ep_rewards))
+        ep_rewards.append(reward)
+        print('Reward: {}'.format(reward))
 
-    print(reward/10)
+    print(np.mean(ep_rewards), '+-', np.std(ep_rewards))
