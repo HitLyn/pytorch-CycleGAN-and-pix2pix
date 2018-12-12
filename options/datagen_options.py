@@ -22,6 +22,7 @@ class DataGenOptions(BaseOptions):
         parser.add_argument('--mode', type=str, default='rollout', help='the mode of data generation we should run')
         parser.add_argument('--size', type=int, default=256, help='size of images we should make')
 
+        parser.add_argument('--noisy', action='store_true', help='should we set state to noisy value from file')
         parser.set_defaults(model='test')
 
         # To avoid cropping, the loadSize should be the same as fineSize

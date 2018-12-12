@@ -100,7 +100,11 @@ def rollout_from_state(opt, env):
     fig = plt.figure()
     ax = fig.add_subplot(1,1,1)
     for state_index in range(states.shape[0]):
+        if opt.noisy:
+            states[state_index] += np.random.randn(states[state_index].shape)
+
         state = MjSimState.from_flattened(states[state_index], env.unwrapped.sim)
+
         env.unwrapped.sim.set_state(state)
         env.unwrapped.sim.forward()
         obs = env.unwrapped._get_observation()['image'][::-1]
