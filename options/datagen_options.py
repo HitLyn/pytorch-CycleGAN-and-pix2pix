@@ -7,13 +7,13 @@ class DataGenOptions(BaseOptions):
         #  Dropout and Batchnorm has different behavioir during training and test.
         parser.add_argument('--eval', action='store_true', help='use eval mode during test time.')
         parser.add_argument('--policy_path', type=str,
-                            default="/home/jonathan/Downloads/learner.24000.ckpt.cpu",
+                            default="surreal_model/learner.24000.ckpt.cpu",
                             help='path to the surreal weights file')
         parser.add_argument('--save_obs', action='store_true', help='if we should save the image obs from the rollout')
-        parser.add_argument('--dataset-name', type=str, default='sawyer_gen')
+        parser.add_argument('--dataset-name', type=str, default='sawyer_gen____')
         parser.add_argument('--data_root', type=str, default='./datasets')
         parser.add_argument('--states-file', type=str, default='states')
-        parser.add_argument('--internal', action='store_true', help='should we use robosuite internal')
+        parser.add_argument('--textured', action='store_true', help='should we use textured robosuite')
         parser.add_argument('--collision', action='store_true', help='should we render the collision mesh instead')
 
         parser.add_argument('--n_rollouts', type=int, default=100, help='the number of rollouts we should perform')

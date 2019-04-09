@@ -4,6 +4,15 @@ Training rl policies from pixels in simulation takes long enough. How could we p
 We find for best results training on images that are larger than the images used by the policy and then downsampling. This will remove some of the finer artefacts of the GAN as well as smooth out some of the textures which we find helps with policy transfer. Training on smaller images like those used by the policy is difficult as the discriminator tends to get too good too fast and making it smaller hurts qualitative results. 
 
 
+## To generate additional data. Use the following process:
+```
+python data_generator.py --mode save_states
+python data_generator.py --mode state2im --textured
+python data_generator.py --mode state2im
+```
+For additional command line options, see `options/datagen_options.py`
+
+
 ---
 
 <img src='imgs/horse2zebra.gif' align="right" width=384>

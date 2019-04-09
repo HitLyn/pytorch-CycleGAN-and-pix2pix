@@ -7,12 +7,13 @@ from options.datagen_options import DataGenOptions
 from mujoco_py import MjSimState
 import pickle
 
-def restore_env(env_config, size, internal=False, collision=False):
+def restore_env(env_config, size, textured=False, collision=False):
     """
     Restore the env
     """
-    env_config.eval_mode.render = True
-    env, env_config = make_env(env_config, 'eval', internal=internal, collision=collision)
+    env_config.eval_mode.render = False
+    env, env_config = make_env(env_config, 'eval')
+
     env.unwrapped.camera_width, env.unwrapped.camera_height = size, size
     return env, env_config
 
@@ -64,15 +65,26 @@ def rollout_save_states(opt, env, env_config):
 
     states = []
     for rollout in range(opt.n_rollouts):
-        ob, _ = env.reset()
+        if opt.textured:
+            with open('mujoco/model.xml', 'r') as f:
+                xml = f.read()
+            d = os.path.dirname(os.path.abspath(__file__))
+            env.unwrapped.reset_from_xml_string(xml.format(base=d))
+            ob = env.unwrapped._get_observation()
+            ob = env._flatten_obs(ob)
+        else:
+            ob, _ = env.reset()
+
+
         for step in range(opt.n_steps):
             obs = env.unwrapped._get_observation()["image"]
 
-            if not opt.save_obs:
-                plt.imshow(obs[::-1])
-                ax.set_title('Observation')
-                plt.pause(0.01)
-                plt.draw()
+            """
+            plt.imshow(obs[::-1])
+            ax.set_title('Observation')
+            plt.pause(0.01)
+            plt.draw()
+            """
 
             state = env.unwrapped.sim.get_state().flatten().copy()
             states.append(state)
@@ -88,14 +100,20 @@ def rollout_save_states(opt, env, env_config):
 
 def rollout_from_state(opt, env):
 
-    t = 'textured' if opt.internal or opt.collision else 'normal'
-    if opt.save_obs:
-        os.makedirs(opt.data_root + '/' + opt.dataset_name + '/state_rollout_{}'.format(t), exist_ok=True)
+    t = 'textured' if opt.textured or opt.collision else 'normal'
+    os.makedirs(opt.data_root + '/' + opt.dataset_name + '/state_rollout_{}'.format(t), exist_ok=True)
 
     save_path = opt.data_root + '/' + opt.dataset_name + '/state_rollout_{}'.format(t)
 
     states = np.load(opt.states_file + '.npy')
-    env.reset()
+
+    if opt.textured:
+        with open('mujoco/model.xml', 'r') as f:
+            xml = f.read()
+        d = os.path.dirname(os.path.abspath(__file__))
+        env.unwrapped.reset_from_xml_string(xml.format(base=d))
+    else:
+        env.reset()
 
     fig = plt.figure()
     ax = fig.add_subplot(1,1,1)
@@ -110,18 +128,18 @@ def rollout_from_state(opt, env):
         obs = env.unwrapped._get_observation()['image'][::-1]
         obs = Image.fromarray(obs).convert('RGB')
 
-        if opt.save_obs:
-            obs.save(save_path + '/from_states_{}.jpg'.format(state_index))
-        else:
-            plt.imshow(obs)
-            ax.set_title('Observation')
-            plt.pause(0.01)
-            plt.draw()
+        obs.save(save_path + '/from_states_{}.jpg'.format(state_index))
+
+        """
+        plt.imshow(obs)
+        ax.set_title('Observation')
+        plt.pause(0.01)
+        plt.draw()
+        """
 
 def rollout_policy(opt, env, env_config):
 
-    if opt.save_obs:
-        os.makedirs(opt.data_root + '/' + opt.dataset_name + '/rollout', exist_ok=True)
+    os.makedirs(opt.data_root + '/' + opt.dataset_name + '/rollout', exist_ok=True)
 
     save_path = opt.data_root + '/' + opt.dataset_name + '/rollout'
     # retrieve the policy params if necessary and restore the model
@@ -144,7 +162,16 @@ def rollout_policy(opt, env, env_config):
 
     total_reward = 0
     for rollout in range(opt.n_rollouts):
-        ob, _ = env.reset()
+        if opt.textured:
+            with open('mujoco/model.xml', 'r') as f:
+                xml = f.read()
+            d = os.path.dirname(os.path.abspath(__file__))
+            env.unwrapped.reset_from_xml_string(xml.format(base=d))
+            ob = env.unwrapped._get_observation()
+            ob = env._flatten_obs(ob)
+        else:
+            ob, _ = env.reset()
+
         for step in range(opt.n_steps):
             obs = env.unwrapped._get_observation()["image"]
 
@@ -154,23 +181,22 @@ def rollout_policy(opt, env, env_config):
 
             total_reward += r
 
-            if opt.save_obs:
-                o = Image.fromarray(obs[::-1]).resize((opt.size, opt.size))
-                o.save(save_path + '/rollout_{}_{}.jpg'.format(rollout, step))
-            else:
-                plt.imshow(obs)
-                ax.set_title('Observation')
-                plt.pause(0.01)
-                plt.draw()
+            o = Image.fromarray(obs[::-1]).resize((opt.size, opt.size))
+            o.save(save_path + '/rollout_{}_{}.jpg'.format(rollout, step))
 
-            if done:
-                env.reset()
+            """
+            plt.imshow(obs)
+            ax.set_title('Observation')
+            plt.pause(0.01)
+            plt.draw()
+            """
+
 
     print('Average return:   {}'.format(total_reward / (opt.n_rollouts * opt.n_steps)))
 
 def rollout_random(opt, env):
 
-    t = 'textured' if opt.internal or opt.collision else 'normal'
+    t = 'textured' if opt.textured or opt.collision else 'normal'
     if opt.save_obs:
         os.makedirs(opt.data_root + '/' + opt.dataset_name + '/random_{}'.format(t), exist_ok=True)
 
@@ -178,18 +204,25 @@ def rollout_random(opt, env):
     fig = plt.figure()
     ax = fig.add_subplot(1,1,1)
     for rollout in range(opt.n_rollouts):
-        env.reset()
+        if opt.textured:
+            with open('mujoco/model.xml', 'r') as f:
+                xml = f.read()
+            d = os.path.dirname(os.path.abspath(__file__))
+            env.unwrapped.reset_from_xml_string(xml.format(base=d))
+        else:
+            env.reset()
         for step in range(opt.n_steps):
             obs = env.unwrapped._get_observation()['image'][::-1]
             obs = Image.fromarray(obs).convert('RGB')
 
-            if opt.save_obs:
-                obs.save(save_path + '/random_{}_{}.jpg'.format(rollout, step))
-            else:
-                plt.imshow(obs)
-                ax.set_title('Observation')
-                plt.pause(0.01)
-                plt.draw()
+            obs.save(save_path + '/random_{}_{}.jpg'.format(rollout, step))
+
+            """
+            plt.imshow(obs)
+            ax.set_title('Observation')
+            plt.pause(0.01)
+            plt.draw()
+            """
 
             action = np.random.randn(env.unwrapped.dof)
             env.step(action)
@@ -200,7 +233,7 @@ if __name__ == '__main__':
 
     environment_config = PPO_DEFAULT_ENV_CONFIG
     environment, _ = restore_env(environment_config, options.size,
-                                 internal=options.internal, collision=options.collision)
+                                 textured=options.textured, collision=options.collision)
 
 
     if options.mode == 'save_states':
