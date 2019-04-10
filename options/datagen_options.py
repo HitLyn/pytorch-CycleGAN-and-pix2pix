@@ -23,6 +23,7 @@ class DataGenOptions(BaseOptions):
         parser.add_argument('--size', type=int, default=256, help='size of images we should make')
 
         parser.add_argument('--noisy', action='store_true', help='should we set state to noisy value from file')
+        parser.add_argument('--no_surreal', action='store_true', help='should we bypass surreal rollout')
         parser.set_defaults(model='test')
 
         # To avoid cropping, the loadSize should be the same as fineSize

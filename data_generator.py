@@ -6,15 +6,20 @@ import matplotlib.pyplot as plt
 from options.datagen_options import DataGenOptions
 from mujoco_py import MjSimState
 import pickle
+import robosuite as suite
 
-def restore_env(env_config, size, textured=False, collision=False):
+def restore_env(env_config, size, textured=False, collision=False, use_surreal=False):
     """
     Restore the env
     """
-    env_config.eval_mode.render = False
-    env, env_config = make_env(env_config, 'eval')
+    if use_surreal:
+        env_config.eval_mode.render = False
+        env, env_config = make_env(env_config, 'eval')
 
-    env.unwrapped.camera_width, env.unwrapped.camera_height = size, size
+        env.unwrapped.camera_width, env.unwrapped.camera_height = size, size
+    else:
+        env = suite.make(env_config.env_name.split(':')[-1])
+        env_config = None
     return env, env_config
 
 def restore_agent(learner_config, env_config, session_config, model):
@@ -44,24 +49,22 @@ def restore_model(path_to_ckpt):
 
 
 def rollout_save_states(opt, env, env_config):
-    # retrieve the policy params if necessary and restore the model
-    print("\nLoading policy located at {}\n".format(opt.policy_path))
-    model = restore_model(opt.policy_path)
 
-    env.unwrapped.camera_width, env.unwrapped.camera_height = 84, 84
+    if not opt.no_surreal:
+        # retrieve the policy params if necessary and restore the model
+        print("\nLoading policy located at {}\n".format(opt.policy_path))
+        model = restore_model(opt.policy_path)
 
-    # restore the configs
-    session_config, learner_config = PPO_DEFAULT_SESSION_CONFIG, PPO_DEFAULT_LEARNER_CONFIG
+        env.unwrapped.camera_width, env.unwrapped.camera_height = 84, 84
 
-    session_config.agent.num_gpus = 0
-    session_config.learner.num_gpus = 0
+        # restore the configs
+        session_config, learner_config = PPO_DEFAULT_SESSION_CONFIG, PPO_DEFAULT_LEARNER_CONFIG
 
-    agent = restore_agent(learner_config, env_config, session_config, model)
-    print("Successfully loaded agent and model!")
+        session_config.agent.num_gpus = 0
+        session_config.learner.num_gpus = 0
 
-    if not opt.save_obs:
-        fig = plt.figure()
-        ax = fig.add_subplot(1,1,1)
+        agent = restore_agent(learner_config, env_config, session_config, model)
+        print("Successfully loaded agent and model!")
 
     states = []
     for rollout in range(opt.n_rollouts):
@@ -69,30 +72,29 @@ def rollout_save_states(opt, env, env_config):
             with open('mujoco/model.xml', 'r') as f:
                 xml = f.read()
             d = os.path.dirname(os.path.abspath(__file__))
-            env.unwrapped.reset_from_xml_string(xml.format(base=d))
-            ob = env.unwrapped._get_observation()
-            ob = env._flatten_obs(ob)
+            env.reset_from_xml_string(xml.format(base=d))
+            if not opt.no_surreal:
+                ob = env._get_observation()
+                ob = env._flatten_obs(ob)
         else:
-            ob, _ = env.reset()
-
+            try:
+                ob, _ = env.reset()
+            except ValueError:
+                ob = env.reset()
 
         for step in range(opt.n_steps):
-            obs = env.unwrapped._get_observation()["image"]
+            if not opt.no_surreal:
+                obs = env._get_observation()["image"]
 
-            """
-            plt.imshow(obs[::-1])
-            ax.set_title('Observation')
-            plt.pause(0.01)
-            plt.draw()
-            """
-
-            state = env.unwrapped.sim.get_state().flatten().copy()
+            state = env.sim.get_state().flatten().copy()
             states.append(state)
 
-            ob['pixel']['camera0'] = np.transpose(obs, (2,0,1))
+            if not opt.no_surreal:
+                ob['pixel']['camera0'] = np.transpose(obs, (2,0,1))
+                action = agent.act(ob)
+            else:
+                action = np.random.randn(8)
 
-
-            action = agent.act(ob)
             ob, _, _, _ = env.step(action)
 
     print()
@@ -111,7 +113,7 @@ def rollout_from_state(opt, env):
         with open('mujoco/model.xml', 'r') as f:
             xml = f.read()
         d = os.path.dirname(os.path.abspath(__file__))
-        env.unwrapped.reset_from_xml_string(xml.format(base=d))
+        env.reset_from_xml_string(xml.format(base=d))
     else:
         env.reset()
 
@@ -121,11 +123,11 @@ def rollout_from_state(opt, env):
         if opt.noisy:
             states[state_index] += np.random.randn(states[state_index].shape)
 
-        state = MjSimState.from_flattened(states[state_index], env.unwrapped.sim)
+        state = MjSimState.from_flattened(states[state_index], env.sim)
 
-        env.unwrapped.sim.set_state(state)
-        env.unwrapped.sim.forward()
-        obs = env.unwrapped._get_observation()['image'][::-1]
+        env.sim.set_state(state)
+        env.sim.forward()
+        obs = env._get_observation()['image'][::-1]
         obs = Image.fromarray(obs).convert('RGB')
 
         obs.save(save_path + '/from_states_{}.jpg'.format(state_index))
@@ -166,14 +168,14 @@ def rollout_policy(opt, env, env_config):
             with open('mujoco/model.xml', 'r') as f:
                 xml = f.read()
             d = os.path.dirname(os.path.abspath(__file__))
-            env.unwrapped.reset_from_xml_string(xml.format(base=d))
-            ob = env.unwrapped._get_observation()
+            env.reset_from_xml_string(xml.format(base=d))
+            ob = env._get_observation()
             ob = env._flatten_obs(ob)
         else:
             ob, _ = env.reset()
 
         for step in range(opt.n_steps):
-            obs = env.unwrapped._get_observation()["image"]
+            obs = env._get_observation()["image"]
 
             ob['pixel']['camera0'] = np.transpose(obs, (2,0,1))
             action = agent.act(ob)
@@ -183,14 +185,6 @@ def rollout_policy(opt, env, env_config):
 
             o = Image.fromarray(obs[::-1]).resize((opt.size, opt.size))
             o.save(save_path + '/rollout_{}_{}.jpg'.format(rollout, step))
-
-            """
-            plt.imshow(obs)
-            ax.set_title('Observation')
-            plt.pause(0.01)
-            plt.draw()
-            """
-
 
     print('Average return:   {}'.format(total_reward / (opt.n_rollouts * opt.n_steps)))
 
@@ -208,11 +202,11 @@ def rollout_random(opt, env):
             with open('mujoco/model.xml', 'r') as f:
                 xml = f.read()
             d = os.path.dirname(os.path.abspath(__file__))
-            env.unwrapped.reset_from_xml_string(xml.format(base=d))
+            env.reset_from_xml_string(xml.format(base=d))
         else:
             env.reset()
         for step in range(opt.n_steps):
-            obs = env.unwrapped._get_observation()['image'][::-1]
+            obs = env._get_observation()['image'][::-1]
             obs = Image.fromarray(obs).convert('RGB')
 
             obs.save(save_path + '/random_{}_{}.jpg'.format(rollout, step))
@@ -232,8 +226,9 @@ if __name__ == '__main__':
     options = DataGenOptions().parse()
 
     environment_config = PPO_DEFAULT_ENV_CONFIG
+    environment_config.env_name = 'robosuite:SawyerLift'
     environment, _ = restore_env(environment_config, options.size,
-                                 textured=options.textured, collision=options.collision)
+                                 textured=options.textured, collision=options.collision, use_surreal=not options.no_surreal)
 
 
     if options.mode == 'save_states':
